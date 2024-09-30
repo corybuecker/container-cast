@@ -1,0 +1,14 @@
+[package]
+name = "container-cast"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+axum = { version = "0.7.6", features = ["macros"] }
+bollard = "0.17.1"
+hex = "0.4.3"
+openssl = { version = "0.10.66", features = ["vendored"] }
+tokio = { version = "1.40.0", features = ["full"] }
+tower-http = { version = "0.6.0", features = ["trace"] }
+tracing = "0.1.40"
+tracing-subscriber = "0.3.18"
