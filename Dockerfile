@@ -12,5 +12,8 @@ COPY src /build/src
 RUN touch /build/src/main.rs
 RUN cargo build --release
 
-FROM rust:1.81.0-alpine
-COPY --from=builder /build/target/release/container-cast /bin/
+FROM scratch
+COPY --from=builder /build/target/release/container-cast /
+COPY etc_passwd /etc/passwd
+USER 65534
+ENTRYPOINT ["/container-cast"]

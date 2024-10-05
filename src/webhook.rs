@@ -5,7 +5,13 @@ use axum::{
     routing::post,
     Router,
 };
+use k8s_openapi::{api::apps::v1::Deployment, chrono::Utc, serde_json::json};
+use kube::{
+    api::{Patch, PatchParams},
+    Api, Client,
+};
 use openssl::{error::ErrorStack, hash::MessageDigest, memcmp, pkey::PKey, sign::Signer};
+use serde::Deserialize;
 use std::{
     env::{self, VarError},
     error::Error,
@@ -49,8 +55,20 @@ impl IntoResponse for WebhookRequestError {
 
 impl Error for WebhookRequestError {}
 
+#[derive(Debug, Deserialize)]
+struct Run {
+    name: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct Webhook {
+    workflow_run: Run,
+}
+
 pub fn router() -> Router {
-    Router::new().route("/", post(handler))
+    Router::new()
+        .route("/", post(handler))
+        .route("/github", post(handler))
 }
 
 #[axum::debug_handler]
@@ -78,14 +96,47 @@ async fn handler(headers: HeaderMap, body: Bytes) -> Result<Response, WebhookReq
 
     debug!("{:#?}", valid_signature);
 
-    Ok(StatusCode::OK.into_response())
-    //   let docker = Docker::connect_with_local_defaults().unwrap();
-    //   let images = docker.list_images::<String>(None).await;
-    //   debug!("{:#?}", images);
-    //
-    //   let containers = docker.list_containers::<String>(None).await;
+    if valid_signature {
+        let payload: Result<Webhook, serde_json::Error> = serde_json::from_slice(&body);
 
-    //  debug!("{:#?}", containers);
+        match payload {
+            Err(error) => {
+                debug!("{:#?}", error);
+            }
+            Ok(webhook) => {
+                if webhook.workflow_run.name == "continuous-delivery" {
+                    let client = Client::try_default().await.unwrap();
+                    let deployment_api: Api<Deployment> = Api::default_namespaced(client);
+                    let deployment = deployment_api.get("simple-budget").await.unwrap();
+
+                    debug!("{:#?}", deployment);
+
+                    let patch = json!({
+                        "spec": {
+                            "template": {
+                                "metadata": {
+                                    "labels": {
+                                        "released": Utc::now().to_string().replace(" ", "").replace("-","").replace(":","")
+                                    }
+                                }
+                            }
+                        }
+                    });
+
+                    deployment_api
+                        .patch(
+                            "simple-budget",
+                            &PatchParams::default(),
+                            &Patch::Merge(&patch),
+                        )
+                        .await
+                        .unwrap();
+                }
+            }
+        }
+    }
+
+    Ok(StatusCode::OK.into_response())
 }
 
 fn computed_signature(body: &[u8]) -> Result<Vec<u8>, WebhookRequestError> {
