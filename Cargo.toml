@@ -5,10 +5,14 @@ edition = "2021"
 
 [dependencies]
 axum = { version = "0.7.6", features = ["macros"] }
-bollard = "0.17.1"
+axum-extra = { version = "0.9.4", features = ["json-deserializer"] }
 hex = "0.4.3"
+k8s-openapi = { version = "0.23.0", features = ["latest"] }
+kube = { version = "0.95.0", features = ["runtime", "derive"] }
 openssl = { version = "0.10.66", features = ["vendored"] }
 tokio = { version = "1.40.0", features = ["full"] }
 tower-http = { version = "0.6.0", features = ["trace"] }
 tracing = "0.1.40"
 tracing-subscriber = "0.3.18"
+serde = { version = "1.0.210", features = ["derive"] }
+serde_json = "1.0.128"

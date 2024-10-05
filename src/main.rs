@@ -1,4 +1,9 @@
 use axum::Router;
+use tokio::{
+    select,
+    signal::unix::{signal, SignalKind},
+    spawn,
+};
 use tower_http::{
     classify::{ServerErrorsAsFailures, SharedClassifier},
     trace::{DefaultMakeSpan, DefaultOnResponse, TraceLayer},
@@ -12,10 +17,23 @@ use webhook::router;
 async fn main() {
     initialize_tracing();
 
+    let mut signal = signal(SignalKind::terminate()).unwrap();
     let app = Router::new().nest("/", router()).layer(trace_layer());
-
     let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
-    axum::serve(listener, app).await.unwrap();
+
+    let server_handle = spawn(async {
+        axum::serve(listener, app).await.unwrap();
+    });
+
+    let signal_listener = spawn(async move {
+        signal.recv().await;
+        0
+    });
+
+    select! {
+        _ = signal_listener => {},
+        _ = server_handle => {},
+    }
 }
 
 fn initialize_tracing() {
